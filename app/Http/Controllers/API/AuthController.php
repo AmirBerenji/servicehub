@@ -4,16 +4,85 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
+use App\Mail\WelcomeMail;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
+
+
+    public function register(Request $request)
+    {
+
+        $validator = Validator::make($request->all(), [
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email',
+            'password' => 'required|min:6|confirmed',
+            'phone'    => 'nullable|min:5',
+            'role'     => 'required|string|in:gust,provider,admin',
+        ]);
+
+
+        if ($validator->fails()) {
+            return apiResponse(false, $validator->errors()->first(), $validator->errors()->messages(), 400);
+        }
+
+        // Check if user already exists
+        if (User::where('email', $request->email)->exists()) {
+            return apiResponse(false, "User already exists!", null, 400);
+        }
+
+        $role = Role::where('name', $request->role)->first();
+        if (!$role) {
+            return apiResponse(false, "User role is not correct", null, 400);
+        }
+
+        // Create user
+        $user = User::create([
+            'name'     => $request->name,
+            'email'    => $request->email,
+            'password' => Hash::make($request->password),
+            'phone'    => $request->phone,
+        ]);
+
+        // Assign role
+
+
+        $user->roles()->attach($role->id);
+        // Create token
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        try {
+            Mail::to($request->email)
+                ->send(new WelcomeMail(
+                    $request->name,
+                    $request->message ?? 'Welcome to our application!'  // ✅ request field stays the same
+                // WelcomeMail now maps it to $body internally
+                ));
+
+        } catch (\Exception $e) {
+            return apiResponse(false, $e->getMessage(), null, 500);
+        }
+
+
+
+
+
+
+        return apiResponse(true, "User registered successfully", [
+            'user'  => new UserResource($user->load('roles')), // include roles
+            'token' => $token
+        ], 200);
+    }
+
 
     public function login(Request $request)
     {
