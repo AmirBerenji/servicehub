@@ -27,7 +27,7 @@ class AuthController extends Controller
             'email'    => 'required|email',
             'password' => 'required|min:6|confirmed',
             'phone'    => 'nullable|min:5',
-            'role'     => 'required|string|in:gust,provider,admin',
+            'role'     => 'required|string|in:guest,provider,admin',
         ]);
 
 
@@ -82,6 +82,7 @@ class AuthController extends Controller
             'token' => $token
         ], 200);
     }
+
 
 
     public function login(Request $request)
